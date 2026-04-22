@@ -161,6 +161,12 @@ public:
         // Fast path: if no predicted collision, use it
         if (!will_collide_with_any(v_plan)) return v_plan;
 
+        // Explore wider set of directions early
+        {
+            Vec v_exp = search_directions(dir, desired_speed);
+            if (v_exp.norm() > 1e-8) return v_exp;
+        }
+
         // Try to reduce speed gradually
         double factor = 0.8;
         for (int tries = 0; tries < 6; ++tries) {
@@ -193,6 +199,12 @@ public:
             if (!will_collide_with_any(v_try)) return v_try;
             v_try = clamp_speed(tangent * (-desired_speed * 0.3));
             if (!will_collide_with_any(v_try)) return v_try;
+        }
+
+        // Explore wider set of directions and speeds
+        {
+            Vec v_exp = search_directions(dir, desired_speed);
+            if (v_exp.norm() > 1e-8) return v_exp;
         }
 
         // As a near-last resort, drift slightly away from neighbors to break deadlock
