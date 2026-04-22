@@ -199,3 +199,4 @@ Submit a single C++ source file to the Online Judge. The OJ provides its own `ma
 ### Academic Integrity
 
 If any violations are found during evaluation or code review (including but not limited to using unconventional methods to pass test cases), your final score may be significantly reduced or become **0 points**.
+
