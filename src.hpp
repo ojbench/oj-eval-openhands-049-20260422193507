@@ -30,6 +30,14 @@ private:
     double v_max, r;
     Monitor *monitor;
 
+    // Reliable clockwise rotation helper (avoid Vec::rotate sign issue)
+    Vec rot_cw(const Vec &v, double theta) const {
+        double c = std::cos(theta);
+        double s = std::sin(theta);
+        return Vec(v.x * c + v.y * s, v.y * c - v.x * s);
+    }
+
+
     // Helper: check if a planned velocity would collide with any other robot during next interval
     bool will_collide_with_any(const Vec &v_plan) const {
         int n = monitor->get_robot_number();
@@ -74,12 +82,20 @@ private:
     Vec search_directions(const Vec &dir, double desired_speed) const {
         // Explore multiple angles and speed factors to find a collision-free direction
         static const double angles[] = {
-            0.0, 0.2, -0.2, 0.4, -0.4, 0.6, -0.6, 0.8, -0.8, 1.0, -1.0, 1.2, -1.2
+            0.0,
+            0.2, -0.2,
+            0.4, -0.4,
+            0.6, -0.6,
+            0.8, -0.8,
+            1.0, -1.0,
+            1.2, -1.2,
+            1.4, -1.4,
+            1.6, -1.6
         };
-        static const double factors[] = {1.0, 0.85, 0.7};
+        static const double factors[] = {1.0, 0.85, 0.7, 0.55};
         for (double f : factors) {
             for (double a : angles) {
-                Vec d = dir.rotate(a);
+                Vec d = rot_cw(dir, a);
                 Vec v_try = clamp_speed(d * (desired_speed * f));
                 if (!will_collide_with_any(v_try)) return v_try;
             }
@@ -179,7 +195,7 @@ public:
         double sign = (id % 2 == 0) ? 1.0 : -1.0;
         double angles[10] = {0.15, 0.3, 0.45, 0.6, 0.9, -0.15, -0.3, -0.45, -0.6, -0.9};
         for (double ang : angles) {
-            Vec d = dir.rotate(sign * ang);
+            Vec d = rot_cw(dir, sign * ang);
             Vec v_try = clamp_speed(d * (desired_speed * 0.6));
             if (!will_collide_with_any(v_try)) return v_try;
         }
@@ -189,7 +205,7 @@ public:
         if (predict_collision(v_plan, other_id) && other_id >= 0) {
             Vec o_pos = monitor->get_pos_cur(other_id);
             Vec radial = (pos_cur - o_pos).normalize();
-            Vec tangent = radial.rotate(PI / 2);
+            Vec tangent = rot_cw(radial, PI / 2);
             Vec v_try = clamp_speed((dir * (desired_speed * 0.5)) + (tangent * (desired_speed * 0.6)));
             if (!will_collide_with_any(v_try)) return v_try;
             v_try = clamp_speed((dir * (desired_speed * 0.5)) - (tangent * (desired_speed * 0.6)));
