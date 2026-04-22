@@ -1,0 +1,115 @@
+#ifndef PPCA_SRC_HPP
+#define PPCA_SRC_HPP
+#include "math.h"
+class Monitor;
+
+class Controller {
+
+public:
+    Controller(const Vec &_pos_tar, double _v_max, double _r, int _id, Monitor *_monitor) {
+        pos_tar = _pos_tar;
+        v_max = _v_max;
+        r = _r;
+        id = _id;
+        monitor = _monitor;
+    }
+
+    void set_pos_cur(const Vec &_pos_cur) {
+        pos_cur = _pos_cur;
+    }
+
+    void set_v_cur(const Vec &_v_cur) {
+        v_cur = _v_cur;
+    }
+
+private:
+    int id;
+    Vec pos_tar;
+    Vec pos_cur;
+    Vec v_cur;
+    double v_max, r;
+    Monitor *monitor;
+
+    // Helper: check if a planned velocity would collide with any other robot during next interval
+    bool will_collide_with_any(const Vec &v_plan) const {
+        int n = monitor->get_robot_number();
+        for (int j = 0; j < n; ++j) {
+            if (j == id) continue;
+            if (will_collide_with(j, v_plan)) return true;
+        }
+        return false;
+    }
+
+    bool will_collide_with(int other_id, const Vec &v_plan) const {
+        Vec other_pos = monitor->get_pos_cur(other_id);
+        Vec other_v = monitor->get_v_cur(other_id);
+        double other_r = monitor->get_r(other_id);
+
+        Vec delta_pos = pos_cur - other_pos;
+        Vec delta_v = v_plan - other_v;
+        double delta_v_norm = delta_v.norm();
+        double project = delta_pos.dot(delta_v);
+        if (project >= 0) return false;
+        project /= -delta_v_norm;
+        double delta_r = r + other_r;
+        double min_dis_sqr;
+        if (project < delta_v_norm * TIME_INTERVAL) {
+            min_dis_sqr = delta_pos.norm_sqr() - project * project;
+        } else {
+            min_dis_sqr = (delta_pos + delta_v * TIME_INTERVAL).norm_sqr();
+        }
+        return min_dis_sqr <= delta_r * delta_r - EPSILON;
+    }
+
+    Vec clamp_speed(const Vec &v) const {
+        double speed = v.norm();
+        double vmax = std::max(0.0, v_max - 1e-6);
+        if (speed <= vmax) return v;
+        return v.normalize() * vmax;
+    }
+
+public:
+
+    Vec get_v_next() {
+        // Base desired direction towards target
+        Vec to_tar = pos_tar - pos_cur;
+        double dist = to_tar.norm();
+        if (dist <= EPSILON) return Vec();
+
+        // Prefer a speed that reaches target in one step but capped by v_max
+        double desired_speed = std::min(v_max, dist / TIME_INTERVAL);
+
+        // If last round had any warning globally, be a bit conservative
+        if (monitor->get_warning()) desired_speed *= 0.8;
+
+        Vec dir = to_tar.normalize();
+        Vec v_plan = dir * desired_speed;
+        v_plan = clamp_speed(v_plan);
+
+        // Fast path: if no predicted collision, use it
+        if (!will_collide_with_any(v_plan)) return v_plan;
+
+        // Try to reduce speed gradually
+        double factor = 0.8;
+        for (int tries = 0; tries < 6; ++tries) {
+            Vec v_try = clamp_speed(dir * (desired_speed * factor));
+            if (!will_collide_with_any(v_try)) return v_try;
+            factor *= 0.6; // rapidly slow down
+        }
+
+        // Try slight sidestep by rotating direction with small angle depending on id parity
+        double sign = (id % 2 == 0) ? 1.0 : -1.0;
+        double angles[4] = {0.3, 0.6, 0.9, 1.2};
+        for (double ang : angles) {
+            Vec d = dir.rotate(sign * ang);
+            Vec v_try = clamp_speed(d * (desired_speed * 0.6));
+            if (!will_collide_with_any(v_try)) return v_try;
+        }
+
+        // As a last resort, stop to avoid collision
+        return Vec();
+    }
+};
+
+
+#endif //PPCA_SRC_HPP
