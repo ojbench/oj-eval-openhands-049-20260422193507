@@ -136,10 +136,16 @@ public:
         int other_id = -1;
         if (predict_collision(v_plan, other_id) && other_id >= 0) {
             Vec o_pos = monitor->get_pos_cur(other_id);
-            Vec tangent = (pos_cur - o_pos).rotate(PI / 2).normalize();
-            Vec v_try = clamp_speed(tangent * (desired_speed * 0.4));
+            Vec radial = (pos_cur - o_pos).normalize();
+            Vec tangent = radial.rotate(PI / 2);
+            Vec v_try = clamp_speed((dir * (desired_speed * 0.5)) + (tangent * (desired_speed * 0.6)));
             if (!will_collide_with_any(v_try)) return v_try;
-            v_try = clamp_speed(tangent * (-desired_speed * 0.4));
+            v_try = clamp_speed((dir * (desired_speed * 0.5)) - (tangent * (desired_speed * 0.6)));
+            if (!will_collide_with_any(v_try)) return v_try;
+            // fallback to pure tangent small move
+            v_try = clamp_speed(tangent * (desired_speed * 0.3));
+            if (!will_collide_with_any(v_try)) return v_try;
+            v_try = clamp_speed(tangent * (-desired_speed * 0.3));
             if (!will_collide_with_any(v_try)) return v_try;
         }
 
