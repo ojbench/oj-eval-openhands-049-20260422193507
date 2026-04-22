@@ -78,6 +78,20 @@ private:
         return v.normalize() * vmax;
     }
 
+    Vec adjust_away_from(int other_id, const Vec &v_in, double margin = 0.0) const {
+        Vec other_pos = monitor->get_pos_cur(other_id);
+        Vec other_v = monitor->get_v_cur(other_id);
+        Vec R = pos_cur - other_pos;
+        Vec Rn = R.normalize();
+        Vec rel_v = v_in - other_v;
+        double d = rel_v.dot(Rn);
+        if (d < margin) {
+            Vec v_out = v_in + Rn * (margin - d);
+            return clamp_speed(v_out);
+        }
+        return v_in;
+    }
+
 public:
 
     Vec get_v_next() {
@@ -118,6 +132,15 @@ public:
         }
 
         Vec v_plan = clamp_speed(v_des + rep);
+
+        // Velocity obstacle-like adjustment: push relative velocity outward for lower-id conflicts
+        int nconf = monitor->get_robot_number();
+        for (int j = 0; j < nconf; ++j) {
+            if (j == id || j >= id) continue; // only adjust for lower-id robots
+            if (will_collide_with(j, v_plan)) {
+                v_plan = adjust_away_from(j, v_plan, 0.0);
+            }
+        }
 
         // Fast path: if no predicted collision, use it
         if (!will_collide_with_any(v_plan)) return v_plan;
