@@ -93,6 +93,12 @@ public:
 
         Vec dir = to_tar.normalize();
         Vec v_des = dir * desired_speed;
+        // If previous step had any warning globally, bias a bit sideways to avoid repeating conflicts
+        if (monitor->get_warning()) {
+            Vec tilt(-dir.y, dir.x);
+            double side = (id % 2 == 0) ? 1.0 : -1.0;
+            v_des = clamp_speed(v_des + tilt * (desired_speed * 0.2 * side));
+        }
 
         // Add repulsion from nearby robots to break symmetry and maintain separation
         Vec rep(0, 0);
