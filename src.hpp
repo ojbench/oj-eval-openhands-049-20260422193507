@@ -150,6 +150,19 @@ public:
             if (!will_collide_with_any(v_try)) return v_try;
         }
 
+        // As a near-last resort, drift slightly away from neighbors to break deadlock
+        Vec repel(0, 0);
+        int nn = monitor->get_robot_number();
+        for (int j = 0; j < nn; ++j) {
+            if (j == id) continue;
+            Vec o_pos = monitor->get_pos_cur(j);
+            repel += (pos_cur - o_pos);
+        }
+        if (repel.norm() > 1e-6) {
+            Vec v_try = clamp_speed(repel.normalize() * std::max(0.1 * v_max, desired_speed * 0.3));
+            if (!will_collide_with_any(v_try)) return v_try;
+        }
+
         // As a last resort, stop to avoid collision
         return Vec();
     }
