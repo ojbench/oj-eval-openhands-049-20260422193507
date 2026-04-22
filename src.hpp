@@ -94,11 +94,11 @@ public:
         Vec dir = to_tar.normalize();
         Vec v_des = dir * desired_speed;
 
-        // Add repulsion from lower-id robots to break symmetry
+        // Add repulsion from nearby robots to break symmetry and maintain separation
         Vec rep(0, 0);
         int n = monitor->get_robot_number();
         for (int j = 0; j < n; ++j) {
-            if (j == id || j > id) continue; // only yield to lower-id
+            if (j == id) continue;
             Vec o_pos = monitor->get_pos_cur(j);
             double o_r = monitor->get_r(j);
             Vec delta = pos_cur - o_pos;
@@ -106,7 +106,8 @@ public:
             double sep = r + o_r + std::max(0.5, v_max * TIME_INTERVAL * 1.5);
             if (d < sep) {
                 double t = (sep - d) / sep; // in (0,1]
-                rep += delta.normalize() * (desired_speed * 1.2 * t);
+                double bias = (j < id) ? 1.4 : 0.8; // yield more to lower-id robots
+                rep += delta.normalize() * (desired_speed * bias * t);
             }
         }
 
@@ -125,10 +126,10 @@ public:
 
         // Try slight sidestep by rotating direction with small angle depending on id parity
         double sign = (id % 2 == 0) ? 1.0 : -1.0;
-        double angles[8] = {0.2, 0.4, 0.6, 0.8, -0.2, -0.4, -0.6, -0.8};
+        double angles[10] = {0.15, 0.3, 0.45, 0.6, 0.9, -0.15, -0.3, -0.45, -0.6, -0.9};
         for (double ang : angles) {
             Vec d = dir.rotate(sign * ang);
-            Vec v_try = clamp_speed(d * (desired_speed * 0.5));
+            Vec v_try = clamp_speed(d * (desired_speed * 0.6));
             if (!will_collide_with_any(v_try)) return v_try;
         }
 
