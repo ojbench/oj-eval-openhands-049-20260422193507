@@ -35,7 +35,8 @@ private:
         int n = monitor->get_robot_number();
         for (int j = 0; j < n; ++j) {
             if (j == id) continue;
-            if (will_collide_with(j, v_plan)) return true;
+            // Yield to lower-id robots only
+            if (j < id && will_collide_with(j, v_plan)) return true;
         }
         return false;
     }
@@ -44,7 +45,7 @@ private:
         int n = monitor->get_robot_number();
         for (int j = 0; j < n; ++j) {
             if (j == id) continue;
-            if (will_collide_with(j, v_plan)) { other_id_out = j; return true; }
+            if (j < id && will_collide_with(j, v_plan)) { other_id_out = j; return true; }
         }
         return false;
     }
@@ -92,8 +93,25 @@ public:
         if (monitor->get_warning()) desired_speed *= 0.8;
 
         Vec dir = to_tar.normalize();
-        Vec v_plan = dir * desired_speed;
-        v_plan = clamp_speed(v_plan);
+        Vec v_des = dir * desired_speed;
+
+        // Add repulsion from lower-id robots to break symmetry
+        Vec rep(0, 0);
+        int n = monitor->get_robot_number();
+        for (int j = 0; j < n; ++j) {
+            if (j == id || j > id) continue; // only yield to lower-id
+            Vec o_pos = monitor->get_pos_cur(j);
+            double o_r = monitor->get_r(j);
+            Vec delta = pos_cur - o_pos;
+            double d = delta.norm();
+            double sep = r + o_r + std::max(0.5, v_max * TIME_INTERVAL * 1.5);
+            if (d < sep) {
+                double t = (sep - d) / sep; // in (0,1]
+                rep += delta.normalize() * (desired_speed * 1.2 * t);
+            }
+        }
+
+        Vec v_plan = clamp_speed(v_des + rep);
 
         // Fast path: if no predicted collision, use it
         if (!will_collide_with_any(v_plan)) return v_plan;
