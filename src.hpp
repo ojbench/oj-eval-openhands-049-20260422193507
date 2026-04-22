@@ -89,8 +89,7 @@ public:
         // Prefer a speed that reaches target in one step but capped by v_max
         double desired_speed = std::min(v_max, dist / TIME_INTERVAL);
 
-        // If last round had any warning globally, be a bit conservative
-        if (monitor->get_warning()) desired_speed *= 0.8;
+        // Keep full speed; do not globally slow down on warnings to avoid stalling
 
         Vec dir = to_tar.normalize();
         Vec v_des = dir * desired_speed;
@@ -121,7 +120,7 @@ public:
         for (int tries = 0; tries < 6; ++tries) {
             Vec v_try = clamp_speed(dir * (desired_speed * factor));
             if (!will_collide_with_any(v_try)) return v_try;
-            factor *= 0.6; // rapidly slow down
+            factor *= 0.7;
         }
 
         // Try slight sidestep by rotating direction with small angle depending on id parity
