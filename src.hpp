@@ -138,7 +138,7 @@ public:
         for (int j = 0; j < nconf; ++j) {
             if (j == id || j >= id) continue; // only adjust for lower-id robots
             if (will_collide_with(j, v_plan)) {
-                v_plan = adjust_away_from(j, v_plan, 0.0);
+                v_plan = adjust_away_from(j, v_plan, std::max(0.05 * v_max, 0.2));
             }
         }
 
