@@ -71,6 +71,22 @@ private:
         return min_dis_sqr <= delta_r * delta_r - EPSILON;
     }
 
+    Vec search_directions(const Vec &dir, double desired_speed) const {
+        // Explore multiple angles and speed factors to find a collision-free direction
+        static const double angles[] = {
+            0.0, 0.2, -0.2, 0.4, -0.4, 0.6, -0.6, 0.8, -0.8, 1.0, -1.0, 1.2, -1.2
+        };
+        static const double factors[] = {1.0, 0.85, 0.7};
+        for (double f : factors) {
+            for (double a : angles) {
+                Vec d = dir.rotate(a);
+                Vec v_try = clamp_speed(d * (desired_speed * f));
+                if (!will_collide_with_any(v_try)) return v_try;
+            }
+        }
+        return Vec();
+    }
+
     Vec clamp_speed(const Vec &v) const {
         double speed = v.norm();
         double vmax = std::max(0.0, v_max - 1e-6);
