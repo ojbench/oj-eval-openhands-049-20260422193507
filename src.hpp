@@ -40,6 +40,15 @@ private:
         return false;
     }
 
+    bool predict_collision(const Vec &v_plan, int &other_id_out) const {
+        int n = monitor->get_robot_number();
+        for (int j = 0; j < n; ++j) {
+            if (j == id) continue;
+            if (will_collide_with(j, v_plan)) { other_id_out = j; return true; }
+        }
+        return false;
+    }
+
     bool will_collide_with(int other_id, const Vec &v_plan) const {
         Vec other_pos = monitor->get_pos_cur(other_id);
         Vec other_v = monitor->get_v_cur(other_id);
@@ -99,10 +108,21 @@ public:
 
         // Try slight sidestep by rotating direction with small angle depending on id parity
         double sign = (id % 2 == 0) ? 1.0 : -1.0;
-        double angles[4] = {0.3, 0.6, 0.9, 1.2};
+        double angles[8] = {0.2, 0.4, 0.6, 0.8, -0.2, -0.4, -0.6, -0.8};
         for (double ang : angles) {
             Vec d = dir.rotate(sign * ang);
-            Vec v_try = clamp_speed(d * (desired_speed * 0.6));
+            Vec v_try = clamp_speed(d * (desired_speed * 0.5));
+            if (!will_collide_with_any(v_try)) return v_try;
+        }
+
+        // If still colliding with a specific nearest robot, try moving tangentially relative to that robot
+        int other_id = -1;
+        if (predict_collision(v_plan, other_id) && other_id >= 0) {
+            Vec o_pos = monitor->get_pos_cur(other_id);
+            Vec tangent = (pos_cur - o_pos).rotate(PI / 2).normalize();
+            Vec v_try = clamp_speed(tangent * (desired_speed * 0.4));
+            if (!will_collide_with_any(v_try)) return v_try;
+            v_try = clamp_speed(tangent * (-desired_speed * 0.4));
             if (!will_collide_with_any(v_try)) return v_try;
         }
 
